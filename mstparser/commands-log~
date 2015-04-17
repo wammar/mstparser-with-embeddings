@@ -1,0 +1,2 @@
+mst_parse.sh train train-file:data/english_train.conll model-name:english_train.conll.model test test-file:data/english_test.conll output-file:english_test.conll.predict eval gold-file:data/english_test.conll
+sh build.sh
