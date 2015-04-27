@@ -71,6 +71,8 @@ public final class ParserOptions {
 
   public String confidenceEstimator = null;
 
+  public String wordTypeFeaturesFile = null;
+
   public ParserOptions(String[] args) {
 
     for (int i = 0; i < args.length; i++) {
@@ -133,8 +135,11 @@ public final class ParserOptions {
       if (pair[0].equals("rankEdgesByConfidence")) {
         rankEdgesByConfidence = true;
       }
+      if (pair[0].equals("word-type-features-file")) {
+        wordTypeFeaturesFile = pair[1];
+      }
     }
-
+    
     try {
       File tmpDir = new File("/tmp");
       if (null != trainfile) {
@@ -191,6 +196,8 @@ public final class ParserOptions {
     sb.append("relational-features: " + useRelationalFeatures);
     sb.append(" | ");
     sb.append("discourse-mode: " + discourseMode);
+    sb.append(" | ");
+    sb.append("word-type-features-file: " + wordTypeFeaturesFile);
     sb.append("]\n");
     return sb.toString();
   }

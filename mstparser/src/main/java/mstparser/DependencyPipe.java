@@ -7,10 +7,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.util.Arrays;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.util.*;
+import java.lang.Math;
 
 import mstparser.io.DependencyReader;
 import mstparser.io.DependencyWriter;
+
 
 public class DependencyPipe {
 
@@ -32,6 +36,8 @@ public class DependencyPipe {
 
   private final ParserOptions options;
 
+    private HashMap<String, String> wordTypeToClusterBitstring = new HashMap<String, String>();
+
   public DependencyPipe(ParserOptions options) throws IOException {
     this.options = options;
 
@@ -43,8 +49,22 @@ public class DependencyPipe {
     typeAlphabet = new Alphabet();
 
     depReader = DependencyReader.createDependencyReader(options.format, options.discourseMode);
-  }
 
+    // Read word-type-level binary features from file into a hashmap.
+    if (options.wordTypeFeaturesFile != null && 
+        !options.wordTypeFeaturesFile.isEmpty()) {
+        BufferedReader br = new BufferedReader(new FileReader(options.wordTypeFeaturesFile));
+        String line;
+        while ((line = br.readLine()) != null) {
+            String[] splits = line.split("\\s+");
+            assert splits.length == 2;
+            String wordType = splits[0];
+            String clusterBitstring = splits[1];
+            wordTypeToClusterBitstring.put(wordType, clusterBitstring);
+        }
+    }
+  }
+    
   public void initInputFile(String file) throws IOException {
     labeled = depReader.startReading(file);
   }
@@ -238,12 +258,12 @@ public class DependencyPipe {
     String[] pos = instance.postags;
     String[] posA = instance.cpostags;
 
-    System.err.println("forms = " + Arrays.toString(forms));
-    System.err.println("pos = " + Arrays.toString(pos));
-    System.err.println("posA = " + Arrays.toString(posA));
-
+    System.err.println("instance.forms = " + Arrays.toString(forms));
+    System.err.println("instance.postags = " + Arrays.toString(pos));
+    System.err.println("instance.cpostags = " + Arrays.toString(posA));
+    
     String att = attR ? "RA" : "LA";
-
+    
     int dist = Math.abs(large - small);
     String distBool = "0";
     if (dist > 10) {
@@ -268,6 +288,30 @@ public class DependencyPipe {
       childIndex = small;
     }
 
+    // add cluster bitstring features 
+    String headCluster = wordTypeToClusterBitstring.get(forms[headIndex]);
+    String childCluster = wordTypeToClusterBitstring.get(forms[childIndex]);
+    if (headCluster != null && childCluster != null) {
+        // 4-bit prefix
+        String headClusterPrefix = headCluster.substring(0, Math.min(4, headCluster.length()));
+        String childClusterPrefix = childCluster.substring(0, Math.min(4, headCluster.length()));
+        addTwoObsFeatures("CLS", headClusterPrefix, headCluster, childClusterPrefix, childCluster, attDist, fv);
+        // 8-bit prefix
+        headClusterPrefix = headCluster.substring(0, Math.min(8, headCluster.length()));
+        childClusterPrefix = childCluster.substring(0, Math.min(8, headCluster.length()));
+        addTwoObsFeatures("CLS", headClusterPrefix, headCluster, childClusterPrefix, childCluster, attDist, fv);
+        // 12-bit prefix
+        headClusterPrefix = headCluster.substring(0, Math.min(12, headCluster.length()));
+        childClusterPrefix = childCluster.substring(0, Math.min(12, headCluster.length()));
+        addTwoObsFeatures("CLS", headClusterPrefix, headCluster, childClusterPrefix, childCluster, attDist, fv);
+    } else if (wordTypeToClusterBitstring.size() > 0 && headCluster == null) {
+        System.err.println("the word `" + forms[headIndex] + "' does not correspond to any cluster in the provided file of word clusters. Will die.");
+        System.exit(1);
+    } else if (wordTypeToClusterBitstring.size() > 0 && childCluster == null) {
+        System.err.println("the word `" + forms[childIndex] + "' does not correspond to any cluster in the provided file of word clusters. Will die.");
+        System.exit(1);
+    }
+    
     addTwoObsFeatures("HC", forms[headIndex], pos[headIndex], forms[childIndex], pos[childIndex],
             attDist, fv);
 
