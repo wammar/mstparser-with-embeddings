@@ -16,9 +16,11 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.*;
 
 import mstparser.DependencyInstance;
 import mstparser.RelationalFeature;
+import mstparser.ParserOptions;
 
 /**
  * A reader for files in CoNLL format.
@@ -34,9 +36,16 @@ import mstparser.RelationalFeature;
 public class CONLLReader extends DependencyReader {
 
   protected boolean discourseMode = false;
-
-  public CONLLReader(boolean discourseMode) {
+  protected ParserOptions options;
+  protected static final String[] NO_FEATURES = {};
+    
+  public CONLLReader(boolean discourseMode, ParserOptions options) {
     this.discourseMode = discourseMode;
+    this.options = options;
+    System.out.println("ignoreLemmas?    " + options.ignoreLemmas);
+    System.out.println("ignoreCpostTags? " + options.ignoreCposTags);
+    System.out.println("ignorePosTags?   " + options.ignorePosTags);
+    System.out.println("ignoreMorphology?" + options.ignoreMorphology);
   }
 
   @Override
@@ -79,10 +88,10 @@ public class CONLLReader extends DependencyReader {
     for (int i = 0; i < length; i++) {
       String[] info = lineList.get(i);
       forms[i + 1] = normalize(info[1]);
-      lemmas[i + 1] = normalize(info[2]);
-      cpos[i + 1] = info[3];
-      pos[i + 1] = info[4];
-      feats[i + 1] = info[5].split("\\|");
+      lemmas[i + 1] = options.ignoreLemmas ? "_" : normalize(info[2]);
+      cpos[i + 1] = options.ignoreCposTags ? "_" : info[3];
+      pos[i + 1] = options.ignorePosTags ? "_" : info[4];
+      feats[i + 1] = options.ignoreMorphology ? NO_FEATURES : info[5].split("\\|");
       deprels[i + 1] = labeled ? info[7] : "<no-type>";
       heads[i + 1] = Integer.parseInt(info[6]);
       if (confScores)
@@ -118,6 +127,18 @@ public class CONLLReader extends DependencyReader {
 
     // End of discourse stuff.
 
+    // Debug
+    //System.out.println("Creating a new dependency instance with the following details:");
+    //System.out.println("forms: " + Arrays.toString(forms));
+    //System.out.println("lemmas: " + Arrays.toString(lemmas));
+    //System.out.println("cpos: " + Arrays.toString(cpos));
+    //System.out.println("pos: " + Arrays.toString(pos));
+    //System.out.println("feats: " + Arrays.toString(feats));
+    //System.out.println("deprels: " + Arrays.toString(deprels));
+    //System.out.println("heads: " + Arrays.toString(heads));
+    //System.out.println("rfeatsList: " + Arrays.toString(rfeatsList));
+    //System.out.println("confscores: " + Arrays.toString(confscores));
+    //System.out.println();
     return new DependencyInstance(forms, lemmas, cpos, pos, feats, deprels, heads, rfeatsList,
             confscores);
 

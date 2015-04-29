@@ -3,20 +3,21 @@ package mstparser;
 import java.io.IOException;
 
 import mstparser.io.DependencyReader;
+import mstparser.ParserOptions;
 
 public class DependencyEvaluator {
 
   public static void evaluate(String act_file, String pred_file, String format,
-          boolean hasConfidence) throws IOException {
+                              boolean hasConfidence, ParserOptions options) throws IOException {
 
-    DependencyReader goldReader = DependencyReader.createDependencyReader(format);
+      DependencyReader goldReader = DependencyReader.createDependencyReader(format, options);
     boolean labeled = goldReader.startReading(act_file);
 
     DependencyReader predictedReader;
     if (hasConfidence) {
-      predictedReader = DependencyReader.createDependencyReaderWithConfidenceScores(format);
+        predictedReader = DependencyReader.createDependencyReaderWithConfidenceScores(format, options);
     } else {
-      predictedReader = DependencyReader.createDependencyReader(format);
+        predictedReader = DependencyReader.createDependencyReader(format, options);
     }
     boolean predLabeled = predictedReader.startReading(pred_file);
 
@@ -96,7 +97,8 @@ public class DependencyEvaluator {
     if (args.length > 2)
       format = args[2];
 
-    evaluate(args[0], args[1], format, false);
+    ParserOptions options = new ParserOptions(args);
+    evaluate(args[0], args[1], format, false, options);
   }
 
 }

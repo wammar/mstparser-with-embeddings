@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.util.*;
 
 public class Alphabet implements Serializable {
   gnu.trove.TObjectIntHashMap map;
@@ -46,6 +47,12 @@ public class Alphabet implements Serializable {
       ret = numEntries;
       map.put(entry, ret);
       numEntries++;
+      //System.out.println(numEntries + ") New string: " + entry.toString());
+      //System.out.println("Stack trace: ");
+      //for (java.lang.StackTraceElement i : Thread.currentThread().getStackTrace()) {
+      //  System.out.println(i);
+      //}
+      //System.out.println();
     }
 
     return ret;

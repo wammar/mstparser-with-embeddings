@@ -17,6 +17,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
+import mstparser.ParserOptions;
+
+
 /**
  * A class that defines common behavior and abstract methods for readers for different formats.
  * 
@@ -35,28 +38,28 @@ public abstract class DependencyReader {
 
   protected boolean confScores = false;
 
-  public static DependencyReader createDependencyReader(String format, boolean discourseMode)
+    public static DependencyReader createDependencyReader(String format, boolean discourseMode, ParserOptions options)
           throws IOException {
 
     if (format.equals("MST")) {
       return new MSTReader();
     } else if (format.equals("CONLL")) {
-      return new CONLLReader(discourseMode);
+        return new CONLLReader(discourseMode, options);
     } else {
       System.out.println("!!!!!!!  Not a supported format: " + format);
       System.out.println("********* Assuming CONLL format. **********");
-      return new CONLLReader(discourseMode);
+      return new CONLLReader(discourseMode, options);
     }
   }
 
-  public static DependencyReader createDependencyReader(String format) throws IOException {
+    public static DependencyReader createDependencyReader(String format, ParserOptions options) throws IOException {
 
-    return createDependencyReader(format, false);
+        return createDependencyReader(format, false, options);
   }
 
-  public static DependencyReader createDependencyReaderWithConfidenceScores(String format)
+    public static DependencyReader createDependencyReaderWithConfidenceScores(String format, ParserOptions options)
           throws IOException {
-    DependencyReader reader = createDependencyReader(format);
+        DependencyReader reader = createDependencyReader(format, options);
     reader.confScores = true;
     return reader;
   }

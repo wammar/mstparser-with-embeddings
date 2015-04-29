@@ -393,7 +393,7 @@ public class DependencyParser {
     if (options.eval) {
       System.out.println("\nEVALUATION PERFORMANCE:");
       DependencyEvaluator.evaluate(options.goldfile, options.outfile, options.format,
-              (options.confidenceEstimator != null));
+                                   (options.confidenceEstimator != null), options);
     }
 
     if (options.rankEdgesByConfidence) {

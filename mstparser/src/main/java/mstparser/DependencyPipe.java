@@ -10,6 +10,7 @@ import java.io.ObjectOutputStream;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.*;
+import java.io.*;
 import java.lang.Math;
 
 import mstparser.io.DependencyReader;
@@ -17,6 +18,8 @@ import mstparser.io.DependencyWriter;
 
 
 public class DependencyPipe {
+
+  private static ArrayList<String[]> UNDERSCORES;
 
   public Alphabet dataAlphabet;
 
@@ -48,12 +51,12 @@ public class DependencyPipe {
     dataAlphabet = new Alphabet();
     typeAlphabet = new Alphabet();
 
-    depReader = DependencyReader.createDependencyReader(options.format, options.discourseMode);
+    depReader = DependencyReader.createDependencyReader(options.format, options.discourseMode, options);
 
     // Read word-type-level binary features from file into a hashmap.
-    if (options.wordTypeFeaturesFile != null && 
-        !options.wordTypeFeaturesFile.isEmpty()) {
-        BufferedReader br = new BufferedReader(new FileReader(options.wordTypeFeaturesFile));
+    if (options.wordClustersFile != null && 
+        !options.wordClustersFile.isEmpty()) {
+        BufferedReader br = new BufferedReader(new FileReader(options.wordClustersFile));
         String line;
         while ((line = br.readLine()) != null) {
             String[] splits = line.split("\\s+");
@@ -62,7 +65,14 @@ public class DependencyPipe {
             String clusterBitstring = splits[1];
             wordTypeToClusterBitstring.put(wordType, clusterBitstring);
         }
+        wordTypeToClusterBitstring.put("<root>", "XXXX");
+    } else {
+        // TODO: we should replace those words with UNK
+        System.err.println("No word clusters file has been specified.");
     }
+
+    // initialize the array list of string[] of underscores
+    UNDERSCORES = new ArrayList<String[]>();
   }
     
   public void initInputFile(String file) throws IOException {
@@ -114,7 +124,9 @@ public class DependencyPipe {
     createAlphabet(file);
 
     System.out.println("Num Features: " + dataAlphabet.size());
-
+    //System.out.println(Arrays.toString(dataAlphabet.map.keys()));
+    //System.out.println("Done printing features.");    
+    
     labeled = depReader.startReading(file);
 
     TIntArrayList lengths = new TIntArrayList();
@@ -251,16 +263,22 @@ public class DependencyPipe {
 
   public void addCoreFeatures(DependencyInstance instance, int small, int large, boolean attR,
           FeatureVector fv) {
-
-    System.err.println("entering addCoreFeatures in DependencyPipe.java..");
-
-    String[] forms = instance.forms;
-    String[] pos = instance.postags;
-    String[] posA = instance.cpostags;
-
-    System.err.println("instance.forms = " + Arrays.toString(forms));
-    System.err.println("instance.postags = " + Arrays.toString(pos));
-    System.err.println("instance.cpostags = " + Arrays.toString(posA));
+    
+      while (instance.forms.length >= UNDERSCORES.size()) {
+          int nextSize = UNDERSCORES.size();
+          String[] nextArray = new String[nextSize];
+          for (int i = 0; i < nextSize; i++) {
+              nextArray[i] = "_";
+          }
+          UNDERSCORES.add(nextArray);
+      } 
+      String[] forms = options.ignoreSurfaceForms? UNDERSCORES.get(instance.forms.length) : instance.forms;
+      String[] posA = instance.cpostags;
+      String[] pos = instance.postags;
+      
+    //System.err.println("forms = " + Arrays.toString(forms));
+    //System.err.println("pos = " + Arrays.toString(pos));
+    //System.err.println("posA = " + Arrays.toString(posA));
     
     String att = attR ? "RA" : "LA";
     
@@ -288,28 +306,24 @@ public class DependencyPipe {
       childIndex = small;
     }
 
-    // add cluster bitstring features 
-    String headCluster = wordTypeToClusterBitstring.get(forms[headIndex]);
-    String childCluster = wordTypeToClusterBitstring.get(forms[childIndex]);
-    if (headCluster != null && childCluster != null) {
+    if (wordTypeToClusterBitstring.size() > 0) {
+        // add cluster bitstring features 
+        String headCluster = wordTypeToClusterBitstring.get(instance.forms[headIndex].toLowerCase());
+        String childCluster = wordTypeToClusterBitstring.get(instance.forms[childIndex].toLowerCase());
+        if (headCluster == null) { headCluster = "UNK"; }
+        if (childCluster == null) { childCluster = "UNK"; }
         // 4-bit prefix
         String headClusterPrefix = headCluster.substring(0, Math.min(4, headCluster.length()));
-        String childClusterPrefix = childCluster.substring(0, Math.min(4, headCluster.length()));
+        String childClusterPrefix = childCluster.substring(0, Math.min(4, childCluster.length()));
         addTwoObsFeatures("CLS", headClusterPrefix, headCluster, childClusterPrefix, childCluster, attDist, fv);
         // 8-bit prefix
         headClusterPrefix = headCluster.substring(0, Math.min(8, headCluster.length()));
-        childClusterPrefix = childCluster.substring(0, Math.min(8, headCluster.length()));
+        childClusterPrefix = childCluster.substring(0, Math.min(8, childCluster.length()));
         addTwoObsFeatures("CLS", headClusterPrefix, headCluster, childClusterPrefix, childCluster, attDist, fv);
         // 12-bit prefix
         headClusterPrefix = headCluster.substring(0, Math.min(12, headCluster.length()));
-        childClusterPrefix = childCluster.substring(0, Math.min(12, headCluster.length()));
+        childClusterPrefix = childCluster.substring(0, Math.min(12, childCluster.length()));
         addTwoObsFeatures("CLS", headClusterPrefix, headCluster, childClusterPrefix, childCluster, attDist, fv);
-    } else if (wordTypeToClusterBitstring.size() > 0 && headCluster == null) {
-        System.err.println("the word `" + forms[headIndex] + "' does not correspond to any cluster in the provided file of word clusters. Will die.");
-        System.exit(1);
-    } else if (wordTypeToClusterBitstring.size() > 0 && childCluster == null) {
-        System.err.println("the word `" + forms[childIndex] + "' does not correspond to any cluster in the provided file of word clusters. Will die.");
-        System.exit(1);
     }
     
     addTwoObsFeatures("HC", forms[headIndex], pos[headIndex], forms[childIndex], pos[childIndex],
@@ -344,8 +358,8 @@ public class DependencyPipe {
 
         for (int i = 0; i < instance.feats[headIndex].length; i++) {
           for (int j = 0; j < instance.feats[childIndex].length; j++) {
-            addTwoObsFeatures("FF" + i + "*" + j, instance.forms[headIndex],
-                    instance.feats[headIndex][i], instance.forms[childIndex],
+            addTwoObsFeatures("FF" + i + "*" + j, forms[headIndex],
+                    instance.feats[headIndex][i], forms[childIndex],
                     instance.feats[childIndex][j], attDist, fv);
 
             addTwoObsFeatures("LF" + i + "*" + j, instance.lemmas[headIndex],
@@ -366,10 +380,6 @@ public class DependencyPipe {
                 instance.lemmas[childIndex], pos[childIndex], attDist, hL, cL, fv);
       }
     }
-
-
-    System.err.println("exiting addCoreFeatures in DependencyPipe.java.");
-
   }
 
   private final void addLinearFeatures(String type, String[] obsVals, int first, int second,
@@ -555,9 +565,10 @@ public class DependencyPipe {
       return;
     }
 
-    String[] forms = instance.forms;
+    String[] emptyStrings = new String[instance.forms.length];
+    String[] forms = options.ignoreSurfaceForms? emptyStrings : instance.forms;
     String[] pos = instance.postags;
-
+    
     String att = "";
     if (attR) {
       att = "RA";
@@ -592,20 +603,23 @@ public class DependencyPipe {
   private void addDiscourseFeatures(DependencyInstance instance, int small, int large,
           int headIndex, int childIndex, String attDist, FeatureVector fv) {
 
-    addLinearFeatures("FORM", instance.forms, small, large, attDist, fv);
+    String[] emptyStrings = new String[instance.forms.length];
+    String[] forms = options.ignoreSurfaceForms? emptyStrings : instance.forms;
+    String[] cpostags = instance.cpostags;
+    addLinearFeatures("FORM", forms, small, large, attDist, fv);
     addLinearFeatures("LEMMA", instance.lemmas, small, large, attDist, fv);
 
-    addTwoObsFeatures("HCB1", instance.forms[headIndex], instance.lemmas[headIndex],
-            instance.forms[childIndex], instance.lemmas[childIndex], attDist, fv);
+    addTwoObsFeatures("HCB1", forms[headIndex], instance.lemmas[headIndex],
+            forms[childIndex], instance.lemmas[childIndex], attDist, fv);
 
-    addTwoObsFeatures("HCB2", instance.forms[headIndex], instance.lemmas[headIndex],
-            instance.forms[childIndex], instance.postags[childIndex], attDist, fv);
+    addTwoObsFeatures("HCB2", forms[headIndex], instance.lemmas[headIndex],
+            forms[childIndex], instance.postags[childIndex], attDist, fv);
 
-    addTwoObsFeatures("HCB3", instance.forms[headIndex], instance.lemmas[headIndex],
-            instance.forms[childIndex], instance.cpostags[childIndex], attDist, fv);
+    addTwoObsFeatures("HCB3", forms[headIndex], instance.lemmas[headIndex],
+            forms[childIndex], instance.cpostags[childIndex], attDist, fv);
 
-    addTwoObsFeatures("HC2", instance.forms[headIndex], instance.postags[headIndex],
-            instance.forms[childIndex], instance.cpostags[childIndex], attDist, fv);
+    addTwoObsFeatures("HC2", forms[headIndex], instance.postags[headIndex],
+            forms[childIndex], instance.cpostags[childIndex], attDist, fv);
 
     addTwoObsFeatures("HCC2", instance.lemmas[headIndex], instance.postags[headIndex],
             instance.lemmas[childIndex], instance.cpostags[childIndex], attDist, fv);
@@ -615,8 +629,8 @@ public class DependencyPipe {
 
       addLinearFeatures("F" + i, instance.feats[i], small, large, attDist, fv);
 
-      addTwoObsFeatures("FF" + i, instance.forms[headIndex], instance.feats[i][headIndex],
-              instance.forms[childIndex], instance.feats[i][childIndex], attDist, fv);
+      addTwoObsFeatures("FF" + i, forms[headIndex], instance.feats[i][headIndex],
+              forms[childIndex], instance.feats[i][childIndex], attDist, fv);
 
       addTwoObsFeatures("LF" + i, instance.lemmas[headIndex], instance.feats[i][headIndex],
               instance.lemmas[childIndex], instance.feats[i][childIndex], attDist, fv);
@@ -637,8 +651,8 @@ public class DependencyPipe {
 
       for (int j = 0; j < instance.feats.length; j++) {
 
-        addTwoObsFeatures("XFF" + i + "_" + j, instance.forms[headIndex],
-                instance.feats[i][headIndex], instance.forms[childIndex],
+        addTwoObsFeatures("XFF" + i + "_" + j, forms[headIndex],
+                instance.feats[i][headIndex], forms[childIndex],
                 instance.feats[j][childIndex], attDist, fv);
 
         addTwoObsFeatures("XLF" + i + "_" + j, instance.lemmas[headIndex],
@@ -666,22 +680,22 @@ public class DependencyPipe {
         String headToChild = "H2C" + rf_index
                 + instance.relFeats[rf_index].getFeature(headIndex, childIndex);
 
-        addTwoObsFeatures("RFA1", instance.forms[headIndex], instance.lemmas[headIndex],
+        addTwoObsFeatures("RFA1", forms[headIndex], instance.lemmas[headIndex],
                 instance.postags[childIndex], headToChild, attDist, fv);
 
         addTwoObsFeatures("RFA2", instance.postags[headIndex], instance.cpostags[headIndex],
-                instance.forms[childIndex], headToChild, attDist, fv);
+                forms[childIndex], headToChild, attDist, fv);
 
         addTwoObsFeatures("RFA3", instance.lemmas[headIndex], instance.postags[headIndex],
-                instance.forms[childIndex], headToChild, attDist, fv);
+                forms[childIndex], headToChild, attDist, fv);
 
         addTwoObsFeatures("RFB1", headToChild, instance.postags[headIndex],
-                instance.forms[childIndex], instance.lemmas[childIndex], attDist, fv);
+                forms[childIndex], instance.lemmas[childIndex], attDist, fv);
 
-        addTwoObsFeatures("RFB2", headToChild, instance.forms[headIndex],
+        addTwoObsFeatures("RFB2", headToChild, forms[headIndex],
                 instance.postags[childIndex], instance.cpostags[childIndex], attDist, fv);
 
-        addTwoObsFeatures("RFB3", headToChild, instance.forms[headIndex],
+        addTwoObsFeatures("RFB3", headToChild, forms[headIndex],
                 instance.lemmas[childIndex], instance.postags[childIndex], attDist, fv);
 
       }

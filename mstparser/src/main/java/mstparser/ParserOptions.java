@@ -13,6 +13,7 @@
 package mstparser;
 
 import java.io.File;
+import java.util.*;
 
 /**
  * Hold all the options for the parser so they can be passed around easily.
@@ -71,72 +72,73 @@ public final class ParserOptions {
 
   public String confidenceEstimator = null;
 
-  public String wordTypeFeaturesFile = null;
+  public String wordClustersFile = null;
 
+  public boolean ignoreSurfaceForms = false;
+  public boolean ignoreLemmas = false;
+  public boolean ignoreCposTags = false;
+  public boolean ignorePosTags = false;
+  public boolean ignoreMorphology = false;
+  
   public ParserOptions(String[] args) {
 
+    System.out.println(Arrays.toString(args));
     for (int i = 0; i < args.length; i++) {
       String[] pair = args[i].split(":");
 
       if (pair[0].equals("train")) {
         train = true;
-      }
-      if (pair[0].equals("eval")) {
+      } else if (pair[0].equals("eval")) {
         eval = true;
-      }
-      if (pair[0].equals("test")) {
+      } else if (pair[0].equals("test")) {
         test = true;
-      }
-      if (pair[0].equals("iters")) {
+      } else if (pair[0].equals("iters")) {
         numIters = Integer.parseInt(pair[1]);
-      }
-      if (pair[0].equals("output-file")) {
+      } else if (pair[0].equals("output-file")) {
         outfile = pair[1];
-      }
-      if (pair[0].equals("gold-file")) {
+      } else if (pair[0].equals("gold-file")) {
         goldfile = pair[1];
-      }
-      if (pair[0].equals("train-file")) {
+      } else if (pair[0].equals("train-file")) {
         trainfile = pair[1];
-      }
-      if (pair[0].equals("test-file")) {
+      } else if (pair[0].equals("test-file")) {
         testfile = pair[1];
-      }
-      if (pair[0].equals("model-name")) {
+      } else if (pair[0].equals("model-name")) {
         modelName = pair[1];
-      }
-      if (pair[0].equals("training-k")) {
+      } else if (pair[0].equals("training-k")) {
         trainK = Integer.parseInt(pair[1]);
-      }
-      if (pair[0].equals("loss-type")) {
+      } else if (pair[0].equals("loss-type")) {
         lossType = pair[1];
-      }
-      if (pair[0].equals("order") && pair[1].equals("2")) {
+      } else if (pair[0].equals("order") && pair[1].equals("2")) {
         secondOrder = true;
-      }
-      if (pair[0].equals("create-forest")) {
+      } else if (pair[0].equals("create-forest")) {
         createForest = pair[1].equals("true") ? true : false;
-      }
-      if (pair[0].equals("decode-type")) {
+      } else if (pair[0].equals("decode-type")) {
         decodeType = pair[1];
-      }
-      if (pair[0].equals("format")) {
+      } else if (pair[0].equals("format")) {
         format = pair[1];
-      }
-      if (pair[0].equals("relational-features")) {
+      } else if (pair[0].equals("relational-features")) {
         useRelationalFeatures = pair[1].equals("true") ? true : false;
-      }
-      if (pair[0].equals("discourse-mode")) {
+      } else if (pair[0].equals("discourse-mode")) {
         discourseMode = pair[1].equals("true") ? true : false;
-      }
-      if (pair[0].equals("confidence-estimation")) {
+      } else if (pair[0].equals("confidence-estimation")) {
         confidenceEstimator = pair[1];
-      }
-      if (pair[0].equals("rankEdgesByConfidence")) {
+      } else if (pair[0].equals("rankEdgesByConfidence")) {
         rankEdgesByConfidence = true;
-      }
-      if (pair[0].equals("word-type-features-file")) {
-        wordTypeFeaturesFile = pair[1];
+      } else if (pair[0].equals("word-clusters-file")) {
+        wordClustersFile = pair[1];
+      } else if (pair[0].equals("ignore-pos-tags")) {
+        ignorePosTags = true;
+      } else if (pair[0].equals("ignore-cpos-tags")) {
+        ignoreCposTags = true;
+      } else if (pair[0].equals("ignore-surface-forms")) {
+        ignoreSurfaceForms = true;
+      } else if (pair[0].equals("ignore-lemmas")) {
+        ignoreLemmas = true;
+      } else if (pair[0].equals("ignore-morphology")) {
+        ignoreMorphology = true;
+      } else {
+          System.out.println("FATAL ERROR: unexpected command line parameter:" + args[i]);
+          System.exit(1);
       }
     }
     
@@ -197,7 +199,7 @@ public final class ParserOptions {
     sb.append(" | ");
     sb.append("discourse-mode: " + discourseMode);
     sb.append(" | ");
-    sb.append("word-type-features-file: " + wordTypeFeaturesFile);
+    sb.append("word-clusters-file: " + wordClustersFile);
     sb.append("]\n");
     return sb.toString();
   }
