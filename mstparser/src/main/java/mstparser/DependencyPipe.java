@@ -312,18 +312,15 @@ public class DependencyPipe {
         String childCluster = wordTypeToClusterBitstring.get(instance.forms[childIndex].toLowerCase());
         if (headCluster == null) { headCluster = "UNK"; }
         if (childCluster == null) { childCluster = "UNK"; }
-        // 4-bit prefix
-        String headClusterPrefix = headCluster.substring(0, Math.min(4, headCluster.length()));
-        String childClusterPrefix = childCluster.substring(0, Math.min(4, childCluster.length()));
-        addTwoObsFeatures("CLS", headClusterPrefix, headCluster, childClusterPrefix, childCluster, attDist, fv);
-        // 8-bit prefix
-        headClusterPrefix = headCluster.substring(0, Math.min(8, headCluster.length()));
-        childClusterPrefix = childCluster.substring(0, Math.min(8, childCluster.length()));
-        addTwoObsFeatures("CLS", headClusterPrefix, headCluster, childClusterPrefix, childCluster, attDist, fv);
-        // 12-bit prefix
-        headClusterPrefix = headCluster.substring(0, Math.min(12, headCluster.length()));
-        childClusterPrefix = childCluster.substring(0, Math.min(12, childCluster.length()));
-        addTwoObsFeatures("CLS", headClusterPrefix, headCluster, childClusterPrefix, childCluster, attDist, fv);
+        String headClusterPrefix;
+        String childClusterPrefix;
+        // bitstring prefixes of lengths 4, 8, 12
+        for (int prefix_length = 4; prefix_length <= 12; prefix_length += 4) {
+            // if the bitstring is shorter than prefix length, use blank instead.
+            headClusterPrefix = headCluster.length() > prefix_length? headCluster.substring(0, prefix_length) : "_";
+            childClusterPrefix = childCluster.length() > prefix_length? childCluster.substring(0, prefix_length) : "_";
+            addTwoObsFeatures("CLS", headClusterPrefix, posA[headIndex], childClusterPrefix, posA[childIndex], attDist, fv);
+        }
     }
     
     addTwoObsFeatures("HC", forms[headIndex], pos[headIndex], forms[childIndex], pos[childIndex],
