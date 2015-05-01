@@ -19,7 +19,8 @@ import mstparser.io.DependencyWriter;
 
 public class DependencyPipe {
 
-  private static ArrayList<String[]> UNDERSCORES;
+    private static ArrayList<String[]> UNDERSCORES;
+    private final static String UNK = "UNK";
 
   public Alphabet dataAlphabet;
 
@@ -40,6 +41,7 @@ public class DependencyPipe {
   private final ParserOptions options;
 
     private HashMap<String, String> wordTypeToClusterBitstring = new HashMap<String, String>();
+    private HashMap<String, float[]> wordTypeToEmbedding = new HashMap<String, float[]>();
 
   public DependencyPipe(ParserOptions options) throws IOException {
     this.options = options;
@@ -53,9 +55,10 @@ public class DependencyPipe {
 
     depReader = DependencyReader.createDependencyReader(options.format, options.discourseMode, options);
 
-    // Read word-type-level binary features from file into a hashmap.
+    // Read word-type-level hierarchical cluster bitstrings from file into a hashmap.
     if (options.wordClustersFile != null && 
         !options.wordClustersFile.isEmpty()) {
+        System.out.print("Reading the word clusters file " + options.wordClustersFile + "...");
         BufferedReader br = new BufferedReader(new FileReader(options.wordClustersFile));
         String line;
         while ((line = br.readLine()) != null) {
@@ -66,9 +69,41 @@ public class DependencyPipe {
             wordTypeToClusterBitstring.put(wordType, clusterBitstring);
         }
         wordTypeToClusterBitstring.put("<root>", "XXXX");
+        System.out.println("done.");
     } else {
-        // TODO: we should replace those words with UNK
-        System.err.println("No word clusters file has been specified.");
+        System.out.println("No word clusters file has been specified.");
+    }
+
+    // Read word-type-level embeddings from file into a hashmap.
+    if (options.wordEmbeddingsFile != null && 
+        !options.wordEmbeddingsFile.isEmpty()) {
+        System.out.print("Reading the embeddings file " + options.wordEmbeddingsFile + "...");
+        BufferedReader br = new BufferedReader(new FileReader(options.wordEmbeddingsFile));
+        String line;
+        int embeddingSize = -1;
+        boolean firstLine = true;
+        while ((line = br.readLine()) != null) {
+            // First line of the embeddings file is metadata.
+            if (firstLine) { firstLine = false; continue; }
+            // Expected format for each line is: "surface-form 0.14 1.41 2.14"
+            // (for an embedding of size 3). Typically, embedding size is much larger.
+            String[] splits = line.split("\\s+");
+            // First word in the file determines the embedding size.
+            if (embeddingSize == -1) { embeddingSize = splits.length - 1; }
+            // Following words in the file must have the same embedding size.
+            assert embeddingSize == splits.length - 1;
+            assert embeddingSize > 0;
+            // Store the word embeddings in a map.
+            String wordType = splits[0];
+            float[] embedding = new float[embeddingSize];
+            for (int i = 0; i < embeddingSize; ++i) {
+                embedding[i] = Float.parseFloat(splits[i+1]);
+            }
+            wordTypeToEmbedding.put(wordType, embedding);
+        }
+        System.out.println("done.");
+    } else {
+        System.out.println("No embeddings file has been specified.");
     }
 
     // initialize the array list of string[] of underscores
@@ -306,20 +341,39 @@ public class DependencyPipe {
       childIndex = small;
     }
 
+    // add cluster bitstring features 
     if (wordTypeToClusterBitstring.size() > 0) {
-        // add cluster bitstring features 
         String headCluster = wordTypeToClusterBitstring.get(instance.forms[headIndex].toLowerCase());
         String childCluster = wordTypeToClusterBitstring.get(instance.forms[childIndex].toLowerCase());
-        if (headCluster == null) { headCluster = "UNK"; }
-        if (childCluster == null) { childCluster = "UNK"; }
+        if (headCluster == null) { headCluster = UNK; }
+        if (childCluster == null) { childCluster = UNK; }
         String headClusterPrefix;
         String childClusterPrefix;
-        // bitstring prefixes of lengths 4, 8, 12
-        for (int prefix_length = 4; prefix_length <= 12; prefix_length += 4) {
+        // bitstring prefixes of lengths 4, 5, ..., 12
+        for (int prefixLength = 4; prefixLength <= 12; prefixLength += 1) {
             // if the bitstring is shorter than prefix length, use blank instead.
-            headClusterPrefix = headCluster.length() > prefix_length? headCluster.substring(0, prefix_length) : "_";
-            childClusterPrefix = childCluster.length() > prefix_length? childCluster.substring(0, prefix_length) : "_";
+            headClusterPrefix = headCluster.length() > prefixLength? headCluster.substring(0, prefixLength) : "_";
+            childClusterPrefix = childCluster.length() > prefixLength? childCluster.substring(0, prefixLength) : "_";
             addTwoObsFeatures("CLS", headClusterPrefix, posA[headIndex], childClusterPrefix, posA[childIndex], attDist, fv);
+        }
+    }
+    
+    if (wordTypeToEmbedding.size() > 0) {
+        float[] headEmbedding = wordTypeToEmbedding.get(instance.forms[headIndex].toLowerCase());
+        float[] childEmbedding = wordTypeToEmbedding.get(instance.forms[headIndex].toLowerCase());
+        if (headEmbedding != null) {
+            for (int i = 0; i < headEmbedding.length; ++i) {
+                add("HEMB" + i, headEmbedding[i], fv);
+            }
+        } else {
+            add("HEMB_" + UNK, fv);
+        }
+        if (childEmbedding != null) {
+            for (int i = 0; i < childEmbedding.length; ++i) {
+                add("CEMB" + i, childEmbedding[i], fv);
+            }
+        } else {
+            add("CEMB_" + UNK, fv);
         }
     }
     
@@ -593,7 +647,30 @@ public class DependencyPipe {
       add("NTIB=" + wP + " " + wPp1 + suff, fv);
       add("NTIC=" + wPm1 + " " + wP + " " + wPp1 + suff, fv);
       add("NTJ=" + w + suff, fv); // this
-
+      
+      if (wordTypeToEmbedding.size() > 0) {
+          String lowerSurfaceForm = instance.forms[word].toLowerCase();
+          float[] embedding = wordTypeToEmbedding.get(lowerSurfaceForm);
+          if (embedding != null) {
+              for (int j = 0; j < embedding.length; ++j) {
+                  add("XEMB" + j + suff, embedding[j], fv);
+              }
+          } else {
+              add("XEMB_" + UNK + suff, fv);
+          }
+      }
+      
+      if (wordTypeToClusterBitstring.size() > 0) {
+          String lowerSurfaceForm = instance.forms[word].toLowerCase();
+          String cluster = wordTypeToClusterBitstring.get(lowerSurfaceForm);
+          if (cluster == null) { cluster = UNK; }
+          int clusterLength = cluster.length();
+          for (int prefixLength = 4; prefixLength <= 12; prefixLength += 1) {
+              // if the bitstring is shorter than prefix length, use blank instead.
+              String clusterPrefix = clusterLength > prefixLength? cluster.substring(0, prefixLength) : "_";
+              add("CLS" + clusterPrefix + suff, fv);
+          }
+      }
     }
   }
 

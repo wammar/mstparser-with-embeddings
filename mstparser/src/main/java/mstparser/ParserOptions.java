@@ -73,6 +73,7 @@ public final class ParserOptions {
   public String confidenceEstimator = null;
 
   public String wordClustersFile = null;
+  public String wordEmbeddingsFile = null;
 
   public boolean ignoreSurfaceForms = false;
   public boolean ignoreLemmas = false;
@@ -126,6 +127,8 @@ public final class ParserOptions {
         rankEdgesByConfidence = true;
       } else if (pair[0].equals("word-clusters-file")) {
         wordClustersFile = pair[1];
+      } else if (pair[0].equals("word-embeddings-file")) {
+        wordEmbeddingsFile = pair[1];
       } else if (pair[0].equals("ignore-pos-tags")) {
         ignorePosTags = true;
       } else if (pair[0].equals("ignore-cpos-tags")) {
@@ -200,6 +203,8 @@ public final class ParserOptions {
     sb.append("discourse-mode: " + discourseMode);
     sb.append(" | ");
     sb.append("word-clusters-file: " + wordClustersFile);
+    sb.append(" | ");
+    sb.append("word-embeddings-file: " + wordEmbeddingsFile);
     sb.append("]\n");
     return sb.toString();
   }
